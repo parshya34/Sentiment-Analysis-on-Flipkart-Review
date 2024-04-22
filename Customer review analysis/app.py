@@ -52,15 +52,16 @@ def extract_amazon_reviews(url, clean_reviews, org_reviews, customernames, comme
     }
     response = requests.get(url, headers=headers)
 
-    # Add your Amazon-specific extraction logic here
+    # Add your Amazon-specific extraction logic here 
     if response.status_code == 200:
         page_html = BeautifulSoup(response.text, "html.parser")
 
         # Amazon reviews extraction 
-        reviews = page_html.find_all('div', {'class': 'a-section review'})
-        commentheads_ = page_html.find_all('span', {'class': 'a-profile-name'})
-        customernames_ = page_html.find_all('span', {'class': 'a-profile-name'})
-        ratings_ = page_html.find_all('span', {'class': 'a-icon-alt'})
+        reviews = page_html.find_all('div', {'class': 'ZmyHeo'})
+        commentheads_ = page_html.find_all('p', {'class': '_2NsDsF AwS1CA'})
+        customernames_ = page_html.find_all('p', {'class': '_2NsDsF AwS1CA'})
+        ratings_ = page_html.find_all('div', {'class': 'XQDdHH Ga3i8K'})
+
 
         for review, cn, ch, r in zip(reviews, customernames_, commentheads_, ratings_):
             x = review.find('span', {'class': 'a-size-base review-text'}).get_text()
@@ -80,19 +81,24 @@ def extract_amazon_reviews(url, clean_reviews, org_reviews, customernames, comme
 
 def extract_all_reviews(url, clean_reviews, org_reviews,customernames,commentheads,ratings):
     try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an exception for HTTP errors (4xx and 5xx)
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
+        }
 
+        response = requests.get(url, headers=headers)
+        print(url)
+        response.raise_for_status()  # Raise an exception for HTTP errors (4xx and 5xx)
+        print(response.raise_for_status())
         page_html = BeautifulSoup(response.text, "html.parser")
 
         if "amazon" in url:
             extract_amazon_reviews(url, clean_reviews, org_reviews, customernames, commentheads, ratings)
         else:
-            reviews = page_html.find_all('div', {'class': 't-ZTKy'})
-            commentheads_ = page_html.find_all('p', {'class': '_2-N8zT'})
-            customernames_ = page_html.find_all('p', {'class': '_2sc7ZR _2V5EHH'})
-            ratings_ = page_html.find_all('div', {'class': ['_3LWZlK _1BLPMq', '_3LWZlK _32lA32 _1BLPMq', '_3LWZlK _1rdVr6 _1BLPMq']})
-
+            reviews = page_html.find_all('div', {'class': 'ZmyHeo'})
+            commentheads_ = page_html.find_all('p', {'class': '_2NsDsF AwS1CA'})
+            customernames_ = page_html.find_all('p', {'class': '_2NsDsF AwS1CA'}) 
+            ratings_ = page_html.find_all('div', {'class': 'XQDdHH Ga3i8K'})    
             for review in reviews:
                 x = review.get_text()
                 org_reviews.append(re.sub(r'READ MORE', '', x))
@@ -184,15 +190,15 @@ def result():
     if response.status_code == 200:
         page_html = BeautifulSoup(response.text, "html.parser")
 
-        proname_elements = page_html.find_all('span', {'class': 'B_NuCI'})
-        price_elements = page_html.find_all('div', {'class': '_30jeq3 _16Jk6d'})
-
+        proname_elements = page_html.find_all('span', {'class': 'VU-ZEz'})
+        price_elements = page_html.find_all('div', {'class': 'Nx9bqj CxhGGd'})
+        print(price_elements)
         # Check if the elements are not empty before accessing index 0
         proname = proname_elements[0].get_text() if proname_elements else 'Product Name Not Found'
         price = price_elements[0].get_text() if price_elements else 'Price Not Found'
         
         # getting the link of see all reviews button
-        all_reviews_elements = page_html.find_all('div', {'class': 'col JOpGWq'})
+        all_reviews_elements = page_html.find_all('div', {'class': 'col pPAw9M'})
 
             # Check if the elements are not empty before accessing index 0
         if all_reviews_elements:
@@ -205,15 +211,15 @@ def result():
             print("No review elements found")
             url2 = ''
 
-        if all_reviews_elements:
-            all_reviews_url = all_reviews_elements[0].find('a', {'data-hook': 'see-all-reviews-link-foot'})
-            if all_reviews_url:
-                all_reviews_url = 'https://www.amazon.com' + all_reviews_url['href']
-                url2 = all_reviews_url + '&pageNumber=1'  # Modify the parameter for page number as per Amazon's URL structure
-            else:
-                print("No 'See all reviews' link found on the page.")
-        else:
-            print("No review elements found.")
+        # if all_reviews_elements:
+        #     all_reviews_url = all_reviews_elements[0].find('a', {'data-hook': 'see-all-reviews-link-foot'})
+        #     if all_reviews_url:
+        #         all_reviews_url = 'https://www.amazon.com' + all_reviews_url['href']
+        #         url2 = all_reviews_url + '&pageNumber=1'  # Modify the parameter for page number as per Amazon's URL structure
+        #     else:
+        #         print("No 'See all reviews' link found on the page.")
+        # else:
+        #     print("No review elements found.")
     
 
             # start reading reviews and go to next page after all reviews are read 
@@ -316,4 +322,4 @@ def generic():
     return render_template("generic.html")
 
 if __name__ == '__main__':
-    app.run(debug=True, threaded=False)
+    app.run(debug=True, threaded=False, host='0.0.0.0', port=8000)
