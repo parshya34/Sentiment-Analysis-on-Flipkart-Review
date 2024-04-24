@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from nltk.corpus import stopwords
 from wordcloud import WordCloud,STOPWORDS
 from flask import Flask,render_template,request,redirect,session
-from models import db, User
+from models import db, User,Password
 
 nltk.download('stopwords')
 
@@ -61,14 +61,15 @@ def extract_amazon_reviews(url, clean_reviews, org_reviews, customernames, comme
         commentheads_ = page_html.find_all('span', {'class': 'a-profile-name'})
         customernames_ = page_html.find_all('span', {'class': 'a-profile-name'})
         ratings_ = page_html.find_all('span', {'class': 'a-icon-alt'})
-
-        for review, cn, ch, r in zip(reviews, customernames_, commentheads_, ratings_):
+        
+        for review, cn, ch, r,l in zip(reviews, customernames_, commentheads_, ratings_,location):
             x = review.find('span', {'class': 'a-size-base review-text'}).get_text()
             org_reviews.append(re.sub(r'READ MORE', '', x))
             clean_reviews.append(clean(x))
             customernames.append('~' + cn.get_text())
             commentheads.append(ch.get_text())
-
+            city.append(l.get_text())
+            print(city)
             # Extract numeric ratings from the 'a-icon-alt' span
             try:
                 numeric_rating = int(re.search(r'\d', r.get_text()).group())
@@ -78,44 +79,53 @@ def extract_amazon_reviews(url, clean_reviews, org_reviews, customernames, comme
 
         print(ratings)
 
-def extract_all_reviews(url, clean_reviews, org_reviews, customernames, commentheads, ratings):
-    try:
-        response = requests.get(url)
-        response.raise_for_status()  # Raise an exception for HTTP errors (4xx and 5xx)
-
-        page_html = BeautifulSoup(response.text, "html.parser")
-
-        # Check if the URL is from Flipkart
-        if "flipkart" in url:
-            reviews = page_html.find_all('div', {'class': 'col EPCmJX'})
-            customernames_ = page_html.find_all('p', {'class': '_2NsDsF AwS1CA'})
-            commentheads_ = page_html.find_all('p', {'class': 'z9E0IG'})
-            ratings_ = page_html.find_all('div', {'class': 'XQDdHH Ga3i8K'})
-
-            for review, cn, ch, r in zip(reviews, customernames_, commentheads_, ratings_):
-                x = review.find('div', {'class': 'col'}).get_text()
-                org_reviews.append(re.sub(r'READ MORE', '', x))
-                clean_reviews.append(clean(x))
-                customernames.append(cn.get_text())
-                commentheads.append(ch.get_text())
-
-                # Extract numeric ratings
-                try:
-                    numeric_rating = int(re.search(r'\d', r.find('img')['src']).group())
-                    ratings.append(numeric_rating)
-                except (AttributeError, ValueError):
-                    ratings.append(0)
-
-            print(ratings)
-
-    except requests.RequestException as e:
-        print(f"An error occurred while fetching data from {url}: {e}")
-
+def extract_all_reviews(url, clean_reviews, org_reviews,customernames,commentheads,ratings):
+    with urllib.urlopen(url) as u:
+        page = u.read()
+        page_html = BeautifulSoup(page, "html.parser")
+    
+    if "amazon" in url:
+        extract_amazon_reviews(url, clean_reviews, org_reviews, customernames, commentheads, ratings)
+    else:
+        reviews = page_html.find_all('div', {'class': 'ZmyHeo'})
+        commentheads_ = page_html.find_all('p', {'class': 'z9E0IG'})
+        customernames_ = page_html.find_all('p', {'class': '_2NsDsF AwS1CA'}) 
+        ratings_ = page_html.find_all('div', {'class': ['XQDdHH Js30Fc Ga3i8K','XQDdHH Czs3gR Ga3i8K','XQDdHH Ga3i8K']})
+        location = page_html.find_all('p', {'class': 'MztJPv'})
+        city=[]
+    
+    for l in location:
+        city.append(l.get_text())
+        print(city)
+    for review in reviews:
+        x = review.get_text()
+        org_reviews.append(re.sub(r'READ MORE', '', x))
+        clean_reviews.append(clean(x))
+    
+    for cn in customernames_:
+        customernames.append('~'+cn.get_text())
+    
+    for ch in commentheads_:
+        commentheads.append(ch.get_text())
+    
+    ra = []
+    for r in ratings_:
+        try:
+            if int(r.get_text()) in [1,2,3,4,5]:
+                ra.append(int(r.get_text()))
+            else:
+                ra.append(0)
+        except:
+            ra.append(r.get_text())
+        
+    ratings += ra
+    print(ratings)
 
 def tokenizer(s):
-    s = s.lower()  # convert the string to lower case
-    tokens = nltk.tokenize.word_tokenize(s)  # make tokens
-    tokens = [t for t in tokens if len(t) > 2]  # remove words having length less than 2
+    s = s.lower()      # convert the string to lower case
+    tokens = nltk.tokenize.word_tokenize(s) # make tokens ['dogs', 'the', 'plural', 'for', 'dog']
+    tokens = [t for t in tokens if len(t) > 2] # remove words having length less than 2
+    tokens = [t for t in tokens if t not in stop_words] # remove stop words like is,and,this,that etc.
     return tokens
 
 
@@ -129,11 +139,17 @@ def sign():
         name = request.form["username"]
         email = request.form["email"]
         password = request.form["pass"]
-
-        new_user = User(name=name, email=email, password=password)
-        db.session.add(new_user)
-        db.session.commit()
-        return redirect("/login")
+        question=request.form["question"]
+        answer=request.form["answer"]
+        if len(password) < 8:
+            return render_template('sign.html', error="Password must be 8 characters or more.")
+        else:
+            new_user = User(name=name, email=email, password=password)
+            new_forgot=Password(email=email,password=password,question=question,answer=answer)
+            db.session.add(new_forgot)
+            db.session.add(new_user)
+            db.session.commit()
+            return redirect("/login")
     return render_template("sign.html")
 
 @app.route("/login", methods=['GET', 'POST'])
@@ -151,11 +167,9 @@ def login():
     else:
         return render_template("login.html")
         
-
 @app.route("/home")
 def home():
     return render_template("home.html")
-
 
 @app.route('/results',methods=['GET'])
 def result():    
@@ -179,13 +193,13 @@ def result():
 
         proname_elements = page_html.find_all('span', {'class': 'VU-ZEz'})
         price_elements = page_html.find_all('div', {'class': 'Nx9bqj CxhGGd'})
-
+        print(price_elements)
         # Check if the elements are not empty before accessing index 0
         proname = proname_elements[0].get_text() if proname_elements else 'Product Name Not Found'
         price = price_elements[0].get_text() if price_elements else 'Price Not Found'
         
         # getting the link of see all reviews button
-        all_reviews_elements = page_html.find_all('div', {'class': '_8-rIO3'})
+        all_reviews_elements = page_html.find_all('div', {'class': 'col pPAw9M'})
 
             # Check if the elements are not empty before accessing index 0
         if all_reviews_elements:
@@ -254,6 +268,8 @@ def result():
             print("No reviews available for WordCloud.")
             
         d = []
+        remain = len(org_reviews)-len(ratings)
+        ratings = ratings + [1]*remain
         for i in range(len(org_reviews)):
             x = {}
             x['review'] = org_reviews[i]
@@ -281,10 +297,11 @@ def result():
 
         return render_template('result.html',dic=d,n=len(clean_reviews),nn=nn,np=np,proname=proname,price=price)
         
-
+    
 @app.route('/wc')
 def wc():
     return render_template('wc.html')
+
 
 class CleanCache:
 	def __init__(self, directory=None):
@@ -307,5 +324,34 @@ def review():
 def generic():
     return render_template("generic.html")
 
+
+
+@app.route("/forgot_password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        email = request.form["email"]
+        user_found = Password.query.filter_by(email=email).first()
+
+        if user_found:
+            question = user_found.question
+            if "answer" in request.form:
+                answer = request.form["answer"]
+                if user_found.answer == answer:
+                    password_found = user_found.password
+                    return render_template("forgot.html",question=question, password_found=password_found)
+                else:
+                    return render_template("forgot.html", question=question, error="Incorrect answer")
+            else:
+                return render_template("forgot.html", question=question)
+        else:
+            return render_template("forgot.html", error=f"Sorry! {email} is not registered")
+    else:
+        return render_template("forgot.html")
+
+
+
 if __name__ == '__main__':
-    app.run(debug=True, threaded=False, port=8000)
+    # with app.app_context():
+    #     db.drop_all()
+    #     db.create_all()
+    app.run(debug=True, threaded=False)
