@@ -91,12 +91,8 @@ def extract_all_reviews(url, clean_reviews, org_reviews,customernames,commenthea
         commentheads_ = page_html.find_all('p', {'class': 'z9E0IG'})
         customernames_ = page_html.find_all('p', {'class': '_2NsDsF AwS1CA'}) 
         ratings_ = page_html.find_all('div', {'class': ['XQDdHH Js30Fc Ga3i8K','XQDdHH Czs3gR Ga3i8K','XQDdHH Ga3i8K']})
-        location = page_html.find_all('p', {'class': 'MztJPv'})
-        city=[]
     
-    for l in location:
-        city.append(l.get_text())
-        print(city)
+    
     for review in reviews:
         x = review.get_text()
         org_reviews.append(re.sub(r'READ MORE', '', x))
